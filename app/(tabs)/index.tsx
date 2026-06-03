@@ -1,143 +1,260 @@
-import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl } from "react-native";
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  TextInput,
+} from "react-native";
 
 import TaskListCard from "@/components/TaskListCard/TaskListCard";
 import { Box } from "@/components/ui/box";
 import { Spinner } from "@/components/ui/spinner";
 import { Text } from "@/components/ui/text";
+
+import {
+  createList,
+  getLists,
+} from "@/services/listService";
+
 import { TaskList } from "@/types/TaskList";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const MOCK_TASK_LISTS: TaskList[] = [
-  {
-    id: "1",
-    title: "Computer Science",
-    subtitle: "Algorithms and data structures",
-    percentage: 60,
-    tags: ["school", "important"],
-    idColor: "bg-blue-500",
-    idIcon: "code",
-  },
-  {
-    id: "2",
-    title: "History",
-    subtitle: "World War II notes",
-    percentage: 30,
-    tags: ["reading"],
-    idColor: "bg-green-500",
-    idIcon: "menu-book",
-  },
-  {
-    id: "3",
-    title: "Math",
-    subtitle: "Calculus exercises",
-    percentage: 90,
-    tags: ["practice", "exam"],
-    idColor: "bg-purple-500",
-    idIcon: "functions",
-  },
-];
-
 export default function HomeScreen() {
-  const router = useRouter();
   const [lists, setLists] = useState<TaskList[]>([]);
+
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const fetchTaskLists = async (): Promise<TaskList[]> => {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const shouldFail = Math.random() < 0.3;
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-        if (shouldFail) {
-          reject(new Error("Failed to fetch lists"));
-        } else {
-          resolve(MOCK_TASK_LISTS);
-        }
-      }, 1000);
-    });
-  };
+  const [error, setError] =
+    useState<string | null>(null);
 
-  const loadLists = async (fromRefresh: boolean = false) => {
+  const [newListName, setNewListName] =
+    useState("");
+
+  const [creating, setCreating] =
+    useState(false);
+
+  const loadLists = async () => {
     try {
       setError(null);
-      if (fromRefresh) {
-        setLoading(true);
-      }
-      const data = await fetchTaskLists();
+
+      const data = await getLists();
+
       setLists(data);
-      if (fromRefresh) {
-        setLoading(false);
-      }
-    } catch (err) {
-      setError("Something went wrong");
+    } catch {
+      setError(
+        "No se pudieron cargar tus listas"
+      );
+
       setLists([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    const init = async () => {
-      setLoading(true);
-      await loadLists();
-      setLoading(false);
-    };
-
-    init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadLists();
   }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
+
     await loadLists();
-    setRefreshing(false);
+  };
+
+  const handleCreateList = async () => {
+    try {
+      if (!newListName.trim()) {
+        setError(
+          "Escribe un nombre para la lista"
+        );
+
+        return;
+      }
+
+      setCreating(true);
+
+      setError(null);
+
+      await createList(
+        newListName.trim()
+      );
+
+      setNewListName("");
+
+      await loadLists();
+    } catch {
+      setError(
+        "No se pudo crear la lista"
+      );
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
-    <SafeAreaView className="flex-1">
-      <Box className="flex-1 p-4">
-        <Text className="text-2xl mb-4">Task Lists</Text>
+    <SafeAreaView className="flex-1 bg-white">
+      <Box className="flex-1 px-6 pt-6">
 
-        {/* Loading */}
+        {/* HEADER */}
+
+        <Box className="mb-6">
+          <Text className="text-4xl font-bold text-gray-800">
+            My Lists
+          </Text>
+
+          <Text className="text-gray-400 mt-1">
+            Keep your tasks soft, simple and organized 🐾
+          </Text>
+        </Box>
+
+        {/* CREATE LIST */}
+
+        <Box className="bg-pink-50 border border-pink-100 rounded-3xl p-4 mb-6">
+
+          <Text className="text-gray-700 font-semibold mb-3">
+            Create a new list 🐱
+          </Text>
+
+          <TextInput
+            placeholder="List name"
+            value={newListName}
+            onChangeText={setNewListName}
+            className="
+              bg-white
+              border
+              border-pink-100
+              rounded-2xl
+              p-4
+              mb-3
+            "
+          />
+
+          <Pressable
+            onPress={handleCreateList}
+            disabled={creating}
+            className="
+              bg-violet-200
+              rounded-2xl
+              p-4
+              items-center
+            "
+          >
+            <Text className="text-gray-700 font-semibold">
+              {creating
+                ? "Creating..."
+                : "Create list"}
+            </Text>
+          </Pressable>
+
+        </Box>
+
+        {/* LOADING */}
+
         {loading && (
-          <Box className="mt-4">
-            <Spinner size="large" color="grey" />
+          <Box className="flex-1 items-center justify-center">
+
+            <Spinner
+              size="large"
+              color="#c4b5fd"
+            />
+
+            <Text className="text-gray-400 mt-4">
+              Loading your lists...
+            </Text>
+
           </Box>
         )}
 
-        {/* Error */}
+        {/* ERROR */}
+
         {!loading && error && (
-          <>
-            <Text className="text-red-500 mb-2">{error}</Text>
-            <Pressable onPress={() => loadLists(true)}>
-              <Text className="text-blue-500 underline">Retry</Text>
+          <Box className="bg-rose-50 border border-rose-100 rounded-3xl p-5">
+
+            <Text className="text-3xl text-center mb-2">
+              🐱
+            </Text>
+
+            <Text className="text-center text-rose-400 mb-4">
+              {error}
+            </Text>
+
+            <Pressable
+              onPress={loadLists}
+              className="
+                bg-rose-100
+                rounded-2xl
+                p-4
+                items-center
+              "
+            >
+              <Text className="text-rose-500 font-semibold">
+                Retry
+              </Text>
             </Pressable>
-          </>
+
+          </Box>
         )}
 
-        {/* Empty */}
-        {!loading && !error && lists.length === 0 && (
-          <Text>No tasks available</Text>
+        {/* EMPTY */}
+
+        {!loading &&
+          !error &&
+          lists.length === 0 && (
+
+          <Box className="bg-violet-50 border border-violet-100 rounded-3xl p-6 mt-4">
+
+            <Text className="text-4xl text-center mb-3">
+              🐾
+            </Text>
+
+            <Text className="text-gray-600 text-center font-semibold">
+              No lists yet
+            </Text>
+
+            <Text className="text-gray-400 text-center mt-1">
+              Create your first task list.
+            </Text>
+
+          </Box>
         )}
 
-        {/* List */}
-        {!loading && !error && (
+        {/* LISTS */}
+
+        {!loading &&
+          !error &&
+          lists.length > 0 && (
+
           <FlatList
             data={lists}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <TaskListCard item={item} />}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+
+            keyExtractor={(item) =>
+              item.id
             }
-            />
-          )}
-        </Box>
-        <Pressable onPress={() => router.push("/storybook")}>
-          <Text className="text-blue-500 underline mb-4">
-            Go to Storybook
-          </Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
+
+            renderItem={({ item }) => (
+              <TaskListCard
+                item={item}
+                reload={loadLists}
+              />
+            )}
+
+            showsVerticalScrollIndicator={false}
+
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+              />
+            }
+          />
+        )}
+
+      </Box>
+    </SafeAreaView>
+  );
+}
